@@ -8,12 +8,24 @@ const canon=x=>Array.isArray(x)?`[${x.map(canon).join(',')}]`:x&&typeof x==='obj
 const sign=(salt,key,payload)=>crypto.createHmac('sha256',salt).update(`${key}|${canon(payload)}`,'utf8').digest('hex');
 const ties=['h2h_points','h2h_diff','overall_diff','scored','fair_play','draw_lots'];
 const eventSport=(sport_id,name,scoring_events,roster,draw_allowed=true)=>({sport_id,name,scoring_model:'event',periods:{count:2,duration_minutes:45},scoring_events,draw_allowed,overtime:{policy:'none'},tie_break_order:ties,roster});
-function baseline(seed=42,stock={'var-jersey-001-M':1,'var-jersey-001-L':5}) {return {seed,stock:{...stock},sports:{
+function baseline(seed=42,stock={}) {const data={seed,stock:{'var-jersey-001-M':1,'var-jersey-001-L':5,...stock},sports:{
   football:eventSport('football','Football',{goal:{points:1}},{min_squad_size:11,max_squad_size:25,required_positions:{gk:1}}),
   basketball:{...eventSport('basketball','Basketball',{free_throw:{points:1},two_pointer:{points:2},three_pointer:{points:3}},{min_squad_size:5,max_squad_size:15,required_positions:{}},false),periods:{count:4,duration_minutes:12},overtime:{policy:'extra_time',duration_minutes:5}},
   cricket:{sport_id:'cricket',name:'Cricket',scoring_model:'innings',periods:{innings_per_team:1,overs_per_innings:20,balls_per_over:6,wickets_per_innings:10},scoring_events:{dot_ball:{runs:0,legal_ball:true,wicket:false},single:{runs:1,legal_ball:true,wicket:false},two:{runs:2,legal_ball:true,wicket:false},four:{runs:4,legal_ball:true,wicket:false},six:{runs:6,legal_ball:true,wicket:false},wide:{runs:1,legal_ball:false,wicket:false},no_ball:{runs:1,legal_ball:false,wicket:false},wicket:{runs:0,legal_ball:true,wicket:true}},draw_allowed:true,overtime:{policy:'super_over'},tie_break_order:ties,roster:{min_squad_size:11,max_squad_size:18,required_positions:{wicketkeeper:1}}},
   esports:{sport_id:'esports',name:'Esports',scoring_model:'round',periods:{best_of:3},scoring_events:{roundwin:{rounds:1}},draw_allowed:false,overtime:{policy:'none'},tie_break_order:ties,roster:{min_squad_size:5,max_squad_size:8,required_positions:{}}}
-},leagues:{},matches:{},eventsById:{},orders:{},rosters:{},transfers:{},audit:[],offline:{}};}
+},leagues:{},matches:{},eventsById:{},orders:{},rosters:{},transfers:{},audit:[],offline:{}};
+  for(const [league_id,teams,fixture,tenant_id] of [
+    ['league-alpha-1',['club-alpha-1','club-alpha-2'],'match-alpha-1','tenant-alpha'],
+    ['league-alpha-2',['club-alpha-1','club-alpha-2'],'match-alpha-2','tenant-alpha'],
+    ['league-beta-1',['club-beta-1','club-beta-2'],'match-beta-1','tenant-beta']]){
+    const fixtures=[{match_id:fixture,home:teams[0],away:teams[1]}];
+    data.leagues[league_id]={league_id,tenant_id,sport_id:'football',teams,fixtures,points:{win:3,draw:1,loss:0},tie_break_order:ties,qualification:{spots:1},lots_seed:seed};
+    data.matches[fixture]={sport_id:'football',league_id,home:teams[0],away:teams[1],events:[]};
+  }
+  const demoStart={event_id:'demo-match-start',type:'match_start',payload:{},sequence:1,signature:sign(process.env.DAY1_SALT??'local-test-only','demo-match-start',{})};
+  data.matches['match-alpha-1'].events.push(demoStart);
+  data.eventsById[demoStart.event_id]={body:{event_id:demoStart.event_id,match_id:'match-alpha-1',type:'match_start',payload:{}},response:{event_id:demoStart.event_id,match_id:'match-alpha-1',type:'match_start',sequence:1,match_version:1,signature:demoStart.signature}};
+  return data;}
 function validateSport(b) {
   const fields=[];
   if(!/^[a-z0-9_-]{2,40}$/.test(b.sport_id||''))fields.push('sport_id');
@@ -50,6 +62,7 @@ function score(s,match_id){
 }
 function addEvent(s,b,salt){
   if(!validId(b.event_id)||!validId(b.match_id)||typeof b.type!=='string'||!b.payload||typeof b.payload!=='object'||Array.isArray(b.payload))fail(400,'VALIDATION_ERROR',{fields:['event_id','match_id','type','payload']});
+  if(!['match_init','match_start','score','discipline','tiebreak_winner','match_end','compensation'].includes(b.type))fail(400,'VALIDATION_ERROR',{fields:['type']});
   const previous=s.eventsById[b.event_id];if(previous){if(canon(previous.body)!==canon(b))fail(409,'DUPLICATE_EVENT_ID');return [200,previous.response];}
   const p=b.payload;let m=s.matches[b.match_id];
   if(b.type==='match_init'){
@@ -71,7 +84,6 @@ function addEvent(s,b,salt){
     const target=s.eventsById[p.compensates];if(!target)fail(404,'EVENT_NOT_FOUND');
     if(target.body.match_id!==b.match_id||!['score','discipline','tiebreak_winner'].includes(target.body.type)||pr.events.some(e=>e.compensated&&e.event_id===p.compensates))fail(409,'INVALID_COMPENSATION');
   }
-  if(!['match_init','match_start','score','discipline','tiebreak_winner','match_end','compensation'].includes(b.type))fail(400,'VALIDATION_ERROR',{fields:['type']});
   const sequence=m.events.length+1,signature=sign(salt,b.event_id,p),response={event_id:b.event_id,match_id:b.match_id,type:b.type,sequence,match_version:sequence,signature};
   m.events.push({event_id:b.event_id,type:b.type,payload:p,signature,sequence});s.eventsById[b.event_id]={body:b,response};return [201,response];
 }

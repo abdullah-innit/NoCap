@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {baseline,addEvent,score,checkout,ApiError}=require('./domain');
+const {baseline,addEvent,score,checkout,ApiError,validateSport}=require('./domain');
 const salt='test-only';
 test('event scoring is reconstructed and a compensation removes a goal',()=>{
   const s=baseline();
@@ -25,4 +25,9 @@ test('declined payment leaves stock available',()=>{
   const s=baseline(),body={order_id:'o1',customer_id:'c1',items:[{variant_id:'var-jersey-001-M',quantity:1}],payment:{token:'tok_declined'}};
   assert.throws(()=>checkout(s,body,salt),e=>e.code==='PAYMENT_DECLINED');
   assert.equal(s.stock['var-jersey-001-M'],1);
+});
+test('a mystery sport is validated from JSON rules',()=>{
+  const sport={sport_id:'kabaddi',name:'Kabaddi',scoring_model:'event',periods:{count:2,duration_minutes:20},scoring_events:{raid_point:{points:1},all_out:{points:2}},draw_allowed:false,overtime:{policy:'golden_score',duration_minutes:5},roster:{min_squad_size:7,max_squad_size:12,required_positions:{raider:2}}};
+  assert.doesNotThrow(()=>validateSport(sport));
+  assert.throws(()=>validateSport({...sport,sport_id:'bad|id'}),e=>e.code==='VALIDATION_ERROR'&&e.details.fields.includes('sport_id'));
 });

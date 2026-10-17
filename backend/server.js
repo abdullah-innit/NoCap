@@ -1,6 +1,11 @@
 const http=require('node:http');
 const {Pool}=require('pg');
 const d=require('./domain');
+const leagues=require('./leagues');
+const fixtures=require('./fixtures');
+const security=require('./security');
+const roster=require('./roster');
+const offline=require('./offline');
 const pool=new Pool({connectionString:process.env.DATABASE_URL});
 async function init(){await pool.query('CREATE TABLE IF NOT EXISTS app_state(id integer PRIMARY KEY,data jsonb NOT NULL)');await pool.query('INSERT INTO app_state(id,data) VALUES(1,$1) ON CONFLICT(id) DO NOTHING',[JSON.stringify(d.baseline())]);}
 async function state(write,fn){
@@ -12,8 +17,16 @@ async function state(write,fn){
     return result;
   }catch(e){if(write)await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 }
-async function route(method,path,b){
+async function route(method,path,b,query,authorization){
   if(method==='GET'&&path==='/health'){const r=await pool.query('SELECT data FROM app_state WHERE id=1');if(!r.rows.length)d.fail(503,'NOT_READY');return [200,{status:'ok'}];}
+  if(method==='POST'&&path==='/api/v1/login')return security.login(b);
+  if(method==='GET'&&path==='/api/v1/dashboard'){
+    const role=security.verify(authorization);
+    return state(false,s=>{
+      const league=s.leagues['league-alpha-1'],fixtures=league.fixtures.map(f=>({...f,...d.score(s,f.match_id)}));
+      return [200,{role,league_id:league.league_id,fixtures,standings:leagues.standings(s,league.league_id)[1],club:{club_id:'club-alpha-1',name:'Alpha Sports Club',staff:['Coach Amina','Manager Bilal'],home_venue:'FAST Sports Ground',players:[{player_id:'player-alpha-1',name:'Ali',position:'forward'},{player_id:'player-alpha-2',name:'Sara',position:'defender'}]},product:{product_id:'prod-jersey-001',name:'Alpha Club Jersey',price_minor:450000,currency:'PKR',variants:['var-jersey-001-M','var-jersey-001-L'],stock:s.stock}}];
+    });
+  }
   if(method==='POST'&&path==='/audit/v1/reset')return state(true,s=>{
     if(b.seed!==undefined&&!Number.isInteger(b.seed))d.fail(400,'VALIDATION_ERROR',{fields:['seed']});
     if(b.stock!==undefined&&(!b.stock||typeof b.stock!=='object'||Object.values(b.stock).some(v=>!d.int(v))))d.fail(400,'VALIDATION_ERROR',{fields:['stock']});
@@ -21,8 +34,16 @@ async function route(method,path,b){
     return [200,{status:'reset_complete',seed:s.seed,sports:Object.keys(s.sports),tenants:['tenant-alpha','tenant-beta'],stock:s.stock}];
   });
   if(method==='POST'&&path==='/audit/v1/sports')return state(true,s=>{d.validateSport(b);if(s.sports[b.sport_id])d.fail(409,'SPORT_EXISTS');const config={...b,tie_break_order:b.tie_break_order??['h2h_points','h2h_diff','overall_diff','scored','fair_play','draw_lots']};s.sports[b.sport_id]=config;return [201,{sport_id:b.sport_id,status:'created',config}];});
+  if(method==='POST'&&path==='/audit/v1/rbac-matrix')return security.matrix();
+  if(method==='POST'&&path==='/audit/v1/fixtures')return fixtures.fixtures(b);
+  if(method==='POST'&&path==='/audit/v1/leagues')return state(true,s=>leagues.createLeague(s,b));
   if(method==='POST'&&path==='/audit/v1/events')return state(true,s=>d.addEvent(s,b,process.env.DAY1_SALT));
-  let m=path.match(/^\/audit\/v1\/score\/([^/]+)$/);if(method==='GET'&&m)return state(false,s=>[200,d.score(s,decodeURIComponent(m[1]))]);
+  if(method==='POST'&&path==='/audit/v1/roster/setup')return state(true,s=>roster.setup(s,b));
+  if(method==='POST'&&path==='/audit/v1/roster/transfer')return state(true,s=>roster.transfer(s,b));
+  if(method==='POST'&&path==='/audit/v1/offline-sync')return state(true,s=>offline.sync(s,b,process.env.DAY1_SALT));
+  let m=path.match(/^\/audit\/v1\/roster\/history\/([^/]+)$/);if(method==='GET'&&m)return state(true,s=>roster.history(s,decodeURIComponent(m[1]),query.get('as_of')));
+  m=path.match(/^\/audit\/v1\/score\/([^/]+)$/);if(method==='GET'&&m)return state(false,s=>[200,d.score(s,decodeURIComponent(m[1]))]);
+  m=path.match(/^\/audit\/v1\/standings\/([^/]+)$/);if(method==='GET'&&m)return state(false,s=>leagues.standings(s,decodeURIComponent(m[1])));
   if(method==='POST'&&path==='/audit/v1/checkout')return state(true,s=>d.checkout(s,b,process.env.DAY1_SALT));
   m=path.match(/^\/audit\/v1\/inventory\/([^/]+)$/);if(method==='GET'&&m)return state(false,s=>{const variant_id=decodeURIComponent(m[1]);if(!['var-jersey-001-M','var-jersey-001-L'].includes(variant_id))d.fail(404,'VARIANT_NOT_FOUND');return [200,{variant_id,stock:s.stock[variant_id]??0,reserved:0}];});
   d.fail(404,'NOT_FOUND');
@@ -30,10 +51,14 @@ async function route(method,path,b){
 const server=http.createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json; charset=utf-8');
   try{
+    const path=new URL(req.url,'http://localhost').pathname;
+    const auth=security.probe(req.method,path,req.headers.authorization);
+    if(auth){res.writeHead(auth[0]);res.end(JSON.stringify(auth[1]));return;}
+    if(req.method==='GET'&&path==='/api/v1/ping'){const [status,payload]=security.ping(req.socket.remoteAddress);res.writeHead(status);res.end(JSON.stringify(payload));return;}
     const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>1048576)d.fail(413,'PAYLOAD_TOO_LARGE');chunks.push(chunk);}
     let b={};if(size){try{b=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{d.fail(400,'VALIDATION_ERROR',{fields:['body']});}}
     if(!b||typeof b!=='object'||Array.isArray(b))d.fail(400,'VALIDATION_ERROR',{fields:['body']});
-    const [status,payload]=await route(req.method,new URL(req.url,'http://localhost').pathname,b);res.writeHead(status);res.end(JSON.stringify(payload));
-  }catch(e){const status=e.status??500;res.writeHead(status);res.end(JSON.stringify({error:{code:e.code??'INTERNAL_ERROR',message:status===500?'Internal server error':e.message,details:e.details??{}}}));if(status===500)console.error(e);}
+    const [status,payload]=await route(req.method,path,b,new URL(req.url,'http://localhost').searchParams,req.headers.authorization);res.writeHead(status);res.end(JSON.stringify(payload));
+  }catch(e){const status=e.status??500;if(status===429)res.setHeader('Retry-After','10');res.writeHead(status);res.end(JSON.stringify({error:{code:e.code??'INTERNAL_ERROR',message:status===500?'Internal server error':e.message,details:e.details??{}}}));if(status===500)console.error(e);}
 });
 init().then(()=>server.listen(8080,'0.0.0.0')).catch(e=>{console.error(e);process.exit(1)});

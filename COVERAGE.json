@@ -1,0 +1,10 @@
+{
+  "measured_at": "2026-10-17",
+  "command": "node --experimental-test-coverage --test backend/domain.test.js backend/audit.test.js",
+  "scope": "Loaded backend modules in the local Node test process; HTTP server and security module are not included",
+  "line_percent": 89.61,
+  "branch_percent": 63.13,
+  "function_percent": 85.87,
+  "tests_passed": 9,
+  "tests_failed": 0
+}
