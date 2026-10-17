@@ -1,7 +1,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {baseline,addEvent}=require('./domain');
-const {roundRobin,singleElim,swiss}=require('./fixtures');
+const {roundRobin,singleElim,swiss,doubleElim}=require('./fixtures');
 const {createLeague,standings}=require('./leagues');
 const {sync}=require('./offline');
 const roster=require('./roster');
@@ -21,6 +21,14 @@ test('single elimination six-team seeding provides two byes',()=>{
 test('Swiss opening round follows seed order and gives last seed the bye',()=>{
   const r=swiss(['t1','t2','t3','t4','t5'])[1];
   assert.equal(r.bye,'t5');assert.deepEqual(r.pairings.map(x=>[x.home,x.away]),[['t1','t3'],['t2','t4']]);
+});
+test('double elimination routes winners and losers into a conditional reset',()=>{
+  const teams=['t1','t2','t3','t4'];
+  const base=doubleElim(teams,{bracket_reset:true})[1];
+  assert.equal(base.winners[0].matches.length,2);assert.equal(base.losers.length,2);
+  assert.equal(base.grand_final[1].required,null);
+  const r=doubleElim(teams,{bracket_reset:true,results:[{match_id:'WR1M1',winner:'t1'},{match_id:'WR1M2',winner:'t2'},{match_id:'LR1M1',winner:'t4'},{match_id:'WR2M1',winner:'t1'},{match_id:'LR2M1',winner:'t4'},{match_id:'GF1',winner:'t4'}]})[1];
+  assert.equal(r.grand_final[0].home,'t1');assert.equal(r.grand_final[0].away,'t4');assert.equal(r.grand_final[1].required,true);
 });
 test('completed events update standings and offline duplicate is skipped',()=>{
   const s=baseline();createLeague(s,{league_id:'lg1',sport_id:'football',teams:['a','b'],fixtures:[{match_id:'m1',home:'a',away:'b'}],qualification:{spots:1}});

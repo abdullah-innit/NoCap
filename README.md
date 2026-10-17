@@ -46,7 +46,7 @@ Run `./run_tests.sh` from the repository root after Docker starts. Tests use dis
 
 - `backend/server.js`: HTTP routes and PostgreSQL transaction boundary.
 - `backend/domain.js`: reset, data-defined sports, signed event log, checkout and PDF receipt.
-- `backend/fixtures.js`: round robin, Swiss, and single-elimination schedules.
+- `backend/fixtures.js`: round robin, Swiss, single-elimination, and double-elimination schedules.
 - `backend/leagues.js`: league registration and standings.
 - `backend/roster.js`, `backend/offline.js`, `backend/security.js`: roster, offline replay, and roles.
 - `mobile/App.js`: Android UI and SQLite queue/cache.

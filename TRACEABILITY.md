@@ -6,7 +6,7 @@ This table maps the booklet's audit requirements to the current code. “Partial
 | --- | --- | --- | --- |
 | FR-1.1 Data-defined sports and event scoring | `backend/domain.js` | `backend/domain.test.js` | Implemented |
 | FR-1.2 League setup and standings | `backend/leagues.js` | `backend/audit.test.js` | Partial: innings net run rate needs more checks |
-| FR-1.3 Fixtures and tournament brackets | `backend/fixtures.js` | `backend/audit.test.js` | Partial: double elimination pending |
+| FR-1.3 Fixtures and tournament brackets | `backend/fixtures.js` | `backend/audit.test.js` | Implemented; hidden edge vectors pending |
 | FR-1.4 Qualification and tie breakers | `backend/leagues.js` | `backend/audit.test.js` | Partial: 3-way H2H tests pending |
 | FR-2.1 Club profile and tenant access | `backend/security.js`, `mobile/App.js` | manual RBAC matrix pending | Partial |
 | FR-2.2 Roster and transfer history | `backend/roster.js` | tests pending | Partial |
