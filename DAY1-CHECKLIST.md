@@ -11,7 +11,7 @@
 1. Keep this laptop and phone on the same Wi-Fi or hotspot.
 2. Set `DAY1_SALT` in the terminal from the team sheet, then run `docker compose up -d --build` in this repository. Never put the salt in a file or message.
 3. Confirm `http://localhost:8080/health` shows `{"status":"ok"}`.
-4. Open Expo Go → Enter URL → `exp://172.15.4.149:8082` while on this laptop's Wi-Fi. If an APK is ready, install `mobile/release/app-release.apk` instead. In the app server field, set `http://172.15.4.149:8080`. Recheck this laptop's Wi-Fi IP after changing networks.
+4. On the current phone hotspot, open Expo Go SDK 57 → Enter URL → `exp://192.168.43.64:8082`. If an APK is ready, install `mobile/release/app-release.apk` instead. In the app server field, set `http://192.168.43.64:8080`. Recheck this laptop's Wi-Fi IP after changing networks.
 5. Sign in as Viewer and open Fixtures, Standings, Club, Store. As Manager, tap **Prepare demo roster** while online. As Organizer, open Scoring.
 6. Turn on airplane mode, open cached screens, queue a score or roster action, force-close and reopen, then reconnect and tap **Sync now**.
 7. Use only mock payment token `tok_success` for the store demo. No real money is involved.

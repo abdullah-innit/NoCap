@@ -26,7 +26,7 @@ The health response should be `{"status":"ok"}`. The audit grader supplies the s
 
 ## Phone demo
 
-Install `mobile/release/app-release.apk` on Android 10 or newer. Keep phone and laptop on the same Wi-Fi or hotspot. In the app's **Settings**, enter `http://LAPTOP-LAN-IP:8080`; for an Android emulator use `http://10.0.2.2:8080`. Open Fixtures, Standings, Club, and Store once while connected to cache them. The Sync tab shows pending offline actions and their results.
+For the live UI demo, use an Android phone with **Expo Go SDK 57** on the same Wi-Fi or hotspot as this laptop. From `mobile/`, run `npx expo start --lan`; scan its QR code or enter the displayed `exp://` URL in Expo Go. In the app's sign-in server field, enter `http://LAPTOP-LAN-IP:8080`; for an Android emulator use `http://10.0.2.2:8080`. Open Fixtures, Standings, Club, and Store once while connected to cache them. The Sync tab shows pending offline actions and their results. A standalone APK is still being built for the required submission.
 
 Demo password for all accounts: `Nascon@26`.
 
