@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nocap
+      POSTGRES_PASSWORD: localonly
+      POSTGRES_DB: nocap
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U nocap -d nocap"]
+      interval: 2s
+      retries: 30
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgres://nocap:localonly@db:5432/nocap
+      DAY1_SALT: ${DAY1_SALT:?Set DAY1_SALT before starting}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
